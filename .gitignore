@@ -1,0 +1,22 @@
+# Python Virtual Environments & Cache
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# PlatformIO Build & Environment Caches
+.pio/
+build/
+.vscode/.browse.c_cpp.db*
+.vscode/ipch/
+
+# OS Generated Files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Large Raw Dataset Logs & Temporary Artifacts
+data/raw/*.csv
+data/processed/*.csv
+experiments/results/*.json
