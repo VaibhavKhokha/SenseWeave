@@ -7,9 +7,10 @@
 
 ## 2. Core Sensor Pin Assignments (3.3 V Rail)
 - MPU6050 (I2C 0x68): VCC->3V3, GND->GND, SDA->GPIO8, SCL->GPIO9
-- Bare LDR + 10kOhm Divider: 3V3 -> LDR -> GPIO4 (ADC1_3) -> 10kOhm -> GND
-- HC-SR04 (RCWL-9300D at 3.3V): VCC->3V3, GND->GND, Trig->GPIO5, Echo->GPIO6
+- Bare LDR + 10kOhm Divider: 3V3 -> LDR -> GPIO1 (ADC1_0) -> 10kOhm -> GND
+- HC-SR04 (RCWL-9300D at 3.3V): VCC->3V3, GND->GND, Trig->GPIO17, Echo->GPIO18
+- 2-Pin Vibration/Tilt Switch: LEG 1 -> GND, Leg 2 -> GPIO7(INPUT_PULLUP)
 
-## 3. Demonstration Task (4 Classes, Session-Split Dataset)
-- Labels: IDLE_AMBIENT, LOW_LIGHT_IDLE, PROXIMITY_HOVER, ACTIVE_WORK_VIBRATION
+## 3. Demonstration Task (5 Classes, Session-Split Dataset)
+- Labels: SEALED_NORMAL, IN_TRANSIT_VIBRATION, TILT_OR_TIP_OVER_HAZARD, BOX_OPENED_INSPECTION, ROUGH_HANDLING_IMPACT
 - Default Constraints: Accuracy >= 85.0%, Tensor Arena <= 16384 B, Latency Profile 1 <= 15000 us, Profile 2 <= 2500 us
