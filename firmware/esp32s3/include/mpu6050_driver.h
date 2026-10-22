@@ -32,6 +32,31 @@ class Mpu6050Drive
 
         uint8_t whoAmI() const { return who_am_i_;}
 
+        bool begin(uint8_t addr = kDefaultAddr)
+        {
+            dev_addr_ = addr;
+
+            if(!readRegister(kRegWhoAmI, &who_am_i_))
+            {
+                return false;
+            }
+
+            if(who_am_i_ != 0x68 && who_am_i_ != 0x70 && who_am_i_ != 0x72 && who_am_i_ != 0x98)
+            {
+                return false;
+            }
+
+            if(!writeRegister(kRegPwrMgmt1, 0x01)) return false;
+            delay(50);
+
+            if(!writeRegister(kRegAccelConfig, 0x00)) return false;
+            if(!writeRegister(kRegGyroConfig, 0x00)) return false;
+
+            return true;
+            
+        }
+
+
     private:
         uint8_t dev_addr_ = kDefaultAddr;
         uint8_t who_am_i_ = 0x00;
@@ -56,7 +81,7 @@ class Mpu6050Drive
             return true;
         }
 
-        
+
 };
 
 }
