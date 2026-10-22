@@ -35,6 +35,28 @@ class Mpu6050Drive
     private:
         uint8_t dev_addr_ = kDefaultAddr;
         uint8_t who_am_i_ = 0x00;
+
+        bool writeRegister(uint8_t reg, uint8_t val)
+        {
+            Wire.beginTransmission(dev_addr_);
+            Wire.write(reg);
+            Wire.write(val);
+            return (Wire.endTransmission() == 0);
+        }
+
+        bool readRegister(uint8_t reg, uint8_t* out_val)
+        {
+            Wire.beginTransmission(dev_addr_);
+            Wire.write(reg);
+
+            if(Wire.endTransmission(false) != 0) return false;
+
+            if(Wire.requestFrom(static_cast<int>(dev_addr_), 1) != 1) return false;
+            *out_val = Wire.read();
+            return true;
+        }
+
+        
 };
 
 }
