@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "board_pins.h"
+#include "mpu6050_driver.h"
 
 namespace {
 constexpr uint32_t kSerialBaudRate = 115200;
