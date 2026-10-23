@@ -17,7 +17,7 @@ struct ImuSample
     uint32_t acquire_latency_us;
 };
 
-class Mpu6050Drive
+class Mpu6050Driver
 {
     public:
         static constexpr uint8_t kDefaultAddr = 0x68;
