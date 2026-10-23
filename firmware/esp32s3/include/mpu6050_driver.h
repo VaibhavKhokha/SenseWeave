@@ -6,7 +6,7 @@
 
 namespace senseweave {
 
-struct ImpuSample
+struct ImuSample
 {
     float ax_g;
     float ay_g;
@@ -56,6 +56,57 @@ class Mpu6050Drive
             
         }
 
+        bool readSample(ImuSample* out_sample)
+        {
+            if(out_sample == nullptr) return false;
+            
+            const int64_t t_start_us = esp_timer_get_time();
+
+            Wire.beginTransmission(dev_addr_);
+            Wire.write(kRegAccelXoutH);
+
+            if(Wire.endTransmission(false) != 0)
+            {
+                return false;
+            }
+
+            constexpr uint8_t kBurstBytes = 14;
+
+            if(Wire.requestFrom(static_cast<int>(dev_addr_), static_cast<int>(kBurstBytes)) != kBurstBytes)
+            {
+                return false;
+            }
+
+            uint8_t buf[kBurstBytes];
+            for(uint8_t i =0; i<kBurstBytes; ++i)
+            {
+                buf[i] = Wire.read();
+            }
+
+            const int16_t raw_ax = unpackInt16(buf[0], buf[1]);
+            const int16_t raw_ay = unpackInt16(buf[2], buf[3]);
+            const int16_t raw_az = unpackInt16(buf[4], buf[5]);
+
+            const int16_t raw_gx = unpackInt16(buf[8], buf[9]);
+            const int16_t raw_gy = unpackInt16(buf[10], buf[11]);
+            const int16_t raw_gz = unpackInt16(buf[12], buf[13]);
+            
+            out_sample->ax_g = static_cast<float>(raw_ax) / kAccelScaleLsbPerG;
+            out_sample->ay_g = static_cast<float>(raw_ay) / kAccelScaleLsbPerG;
+            out_sample->az_g = static_cast<float>(raw_az) / kAccelScaleLsbPerG;
+
+            out_sample->gx_dps = static_cast<float>(raw_gx) / kGyroScaleLsbPerDps;
+            out_sample->gy_dps = static_cast<float>(raw_gy) / kGyroScaleLsbPerDps;
+            out_sample->gz_dps = static_cast<float>(raw_gz) / kGyroScaleLsbPerDps;
+
+            const int64_t t_end_us = esp_timer_get_time();
+
+            out_sample->acquire_latency_us = static_cast<uint32_t>(t_end_us - t_start_us);
+            
+            return true;
+
+        }
+
 
     private:
         uint8_t dev_addr_ = kDefaultAddr;
@@ -79,6 +130,11 @@ class Mpu6050Drive
             if(Wire.requestFrom(static_cast<int>(dev_addr_), 1) != 1) return false;
             *out_val = Wire.read();
             return true;
+        }
+
+        static int16_t unpackInt16(uint8_t hi, uint8_t lo)
+        {
+            return static_cast<int16_t>((static_cast<uint16_t>(hi) << 8) | lo);
         }
 
 
