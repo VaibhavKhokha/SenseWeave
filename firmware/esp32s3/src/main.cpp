@@ -85,17 +85,30 @@ void loop()
         g_last_sample_ms = now_ms;
 
         senseweave::ImuSample sample{};
+
         uint32_t ldr_val = 0;
         uint32_t ldr_latency = 0;
-        float dist_cm = 0.0f;
-        uint32_t dist_latency = 0;
+
+        static float dist_cm = 0.0f;
+        static uint32_t dist_latency = 0;
+        static uint32_t last_usonic_read_ms = 0;
+
         uint8_t vib_val = 0;
         uint32_t vib_latency = 0;
 
         if(!g_imu.readSample(&sample)) Serial.println("Error: I2C read failed...");
         if(!g_ldr.readSample(&ldr_val, &ldr_latency)) Serial.println("LDR Read Failed...");
-        if(!g_usonic.readSample(&dist_cm, &dist_latency)) Serial.println("Ultrasonic Read Failed...");
         if(!g_vib.readSample(&vib_val, &vib_latency)) Serial.println("VIB Read Failed...");
+
+        if(now_ms - last_usonic_read_ms >= 200)
+        {
+            last_usonic_read_ms = now_ms;
+            if(!g_usonic.readSample(&dist_cm, &dist_latency))
+            {
+                Serial.println("Ultrasonic Read Failed...");
+            }
+
+        }
 
         if(g_is_recording)
         {
