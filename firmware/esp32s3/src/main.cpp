@@ -4,6 +4,7 @@
 #include "mpu6050_driver.h"
 #include "ldr_driver.h"
 #include "hcsr04_driver.h"
+#include "vibration_driver.h"
 
 namespace
 {
@@ -13,6 +14,7 @@ namespace
     senseweave::Mpu6050Driver g_imu;
     senseweave::LdrDriver g_ldr;
     senseweave::Hcsr04Driver g_usonic;
+    senseweave::VibrationDriver g_vib;
 
     uint32_t g_last_sample_ms = 0;    
 }
@@ -47,6 +49,10 @@ void setup()
     Serial.println("Ultrasonic Sensor Initialized...");
     Serial.println("==========================================");
 
+    g_vib.begin(senseweave::pins::kVibrationSwitchPin);
+    Serial.println("Vibration Sensor Initialized...");
+    Serial.println("==========================================");
+
 }
 
 
@@ -63,6 +69,8 @@ void loop()
         uint32_t ldr_latency = 0;
         float dist_cm = 0.0f;
         uint32_t dist_latency = 0;
+        uint8_t vib_val = 0;
+        uint32_t vib_latency = 0;
 
         if(g_imu.readSample(&sample))
         {
@@ -96,6 +104,10 @@ void loop()
             Serial.println("ULtrasonic Read Failed...");
         }
 
+        if(g_vib.readSample(&vib_val, &vib_latency))
+        {
+            Serial.printf("[VIB] %d T = %u us \n", vib_val, vib_latency);
+        }
 
     }
 
