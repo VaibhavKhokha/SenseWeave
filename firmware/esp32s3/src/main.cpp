@@ -3,6 +3,7 @@
 #include "board_pins.h"
 #include "mpu6050_driver.h"
 #include "ldr_driver.h"
+#include "hcsr04_driver.h"
 
 namespace
 {
@@ -11,6 +12,7 @@ namespace
 
     senseweave::Mpu6050Driver g_imu;
     senseweave::LdrDriver g_ldr;
+    senseweave::Hcsr04Driver g_usonic;
 
     uint32_t g_last_sample_ms = 0;    
 }
@@ -41,6 +43,10 @@ void setup()
     Serial.println("LDR Initialized...");
     Serial.println("=========================================");
 
+    g_usonic.begin(senseweave::pins::kUltrasonicTrigPin, senseweave::pins::kUltrasonicEchoPin);
+    Serial.println("Ultrasonic Sensor Initialized...");
+    Serial.println("==========================================");
+
 }
 
 
@@ -55,6 +61,8 @@ void loop()
         senseweave::ImuSample sample{};
         uint32_t ldr_val = 0;
         uint32_t ldr_latency = 0;
+        float dist_cm = 0.0f;
+        uint32_t dist_latency = 0;
 
         if(g_imu.readSample(&sample))
         {
@@ -78,6 +86,16 @@ void loop()
         {
             Serial.println("LDR Read Failed...");
         }
+
+        if(g_usonic.readSample(&dist_cm, &dist_latency))
+        {
+            Serial.printf("[DIST] %6.1f cm | T_acq = %5u us \n", dist_cm, dist_latency);
+        }
+        else
+        {
+            Serial.println("ULtrasonic Read Failed...");
+        }
+
 
     }
 
