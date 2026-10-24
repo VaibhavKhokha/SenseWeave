@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include "board_pins.h"
 #include "mpu6050_driver.h"
+#include "ldr_driver.h"
 
 namespace
 {
@@ -9,6 +10,8 @@ namespace
     constexpr uint32_t kPrintIntervalMs = 200;
 
     senseweave::Mpu6050Driver g_imu;
+    senseweave::LdrDriver g_ldr;
+
     uint32_t g_last_sample_ms = 0;    
 }
 
@@ -33,6 +36,11 @@ void setup()
 
     Serial.println("=========================================");
 
+
+    g_ldr.begin(senseweave::pins::kLdrAdcPin);
+    Serial.println("LDR Initialized...");
+    Serial.println("=========================================");
+
 }
 
 
@@ -45,6 +53,8 @@ void loop()
         g_last_sample_ms = now_ms;
 
         senseweave::ImuSample sample{};
+        uint32_t ldr_val = 0;
+        uint32_t ldr_latency = 0;
 
         if(g_imu.readSample(&sample))
         {
@@ -58,6 +68,15 @@ void loop()
         else
         {
             Serial.println("Error: I2C read failed...");
+        }
+
+        if(g_ldr.readSample(&ldr_val, &ldr_latency))
+        {
+            Serial.printf("[LDR] val=%4u | T_acq=%3u us\n", ldr_val, ldr_latency);
+        }
+        else
+        {
+            Serial.println("LDR Read Failed...");
         }
 
     }
