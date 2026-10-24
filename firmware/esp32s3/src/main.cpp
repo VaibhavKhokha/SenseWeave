@@ -9,14 +9,17 @@
 namespace
 {
     constexpr uint32_t kSerialBaudRate = 115200;
-    constexpr uint32_t kPrintIntervalMs = 200;
+    constexpr uint32_t kPrintIntervalMs = 20;
 
     senseweave::Mpu6050Driver g_imu;
     senseweave::LdrDriver g_ldr;
     senseweave::Hcsr04Driver g_usonic;
     senseweave::VibrationDriver g_vib;
 
-    uint32_t g_last_sample_ms = 0;    
+    uint32_t g_last_sample_ms = 0;
+    bool g_is_recording = false;
+    int g_current_label = 0;
+    
 }
 
 void setup()
@@ -58,6 +61,23 @@ void setup()
 
 void loop()
 {
+    if(Serial.available() > 0)
+    {
+        char cmd = Serial.read();
+        if(cmd >= '0' && cmd <= '4')
+        {
+            g_current_label = cmd - '0';
+            g_is_recording = true;
+            Serial.println("--- RECORDING STARTED ---");
+        }
+        else if(cmd == 's' || cmd == 'S')
+        {
+            g_is_recording = false;
+            Serial.println("--- RECORDING STOPPED ---");
+        }
+
+    }
+
     const uint32_t now_ms = millis();
 
     if(now_ms - g_last_sample_ms >= kPrintIntervalMs)
@@ -72,41 +92,18 @@ void loop()
         uint8_t vib_val = 0;
         uint32_t vib_latency = 0;
 
-        if(g_imu.readSample(&sample))
+        if(!g_imu.readSample(&sample)) Serial.println("Error: I2C read failed...");
+        if(!g_ldr.readSample(&ldr_val, &ldr_latency)) Serial.println("LDR Read Failed...");
+        if(!g_usonic.readSample(&dist_cm, &dist_latency)) Serial.println("Ultrasonic Read Failed...");
+        if(!g_vib.readSample(&vib_val, &vib_latency)) Serial.println("VIB Read Failed...");
+
+        if(g_is_recording)
         {
-            Serial.printf("[IMU] Accel(g): X=%+6.3f Y=%+6.3f Z=%+6.3f | "
-                          "Gyro(dps): X=%+7.2f Y=%+7.2f Z=%+7.2f | "
-                          "T_acq=%u us\n",
+            Serial.printf("%lu,%d,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%u,%.1f,%d\n",
+                          now_ms, g_current_label,
                           sample.ax_g, sample.ay_g, sample.az_g,
                           sample.gx_dps, sample.gy_dps, sample.gz_dps,
-                          sample.acquire_latency_us);
-        }
-        else
-        {
-            Serial.println("Error: I2C read failed...");
-        }
-
-        if(g_ldr.readSample(&ldr_val, &ldr_latency))
-        {
-            Serial.printf("[LDR] val=%4u | T_acq=%3u us\n", ldr_val, ldr_latency);
-        }
-        else
-        {
-            Serial.println("LDR Read Failed...");
-        }
-
-        if(g_usonic.readSample(&dist_cm, &dist_latency))
-        {
-            Serial.printf("[DIST] %6.1f cm | T_acq = %5u us \n", dist_cm, dist_latency);
-        }
-        else
-        {
-            Serial.println("ULtrasonic Read Failed...");
-        }
-
-        if(g_vib.readSample(&vib_val, &vib_latency))
-        {
-            Serial.printf("[VIB] %d T = %u us \n", vib_val, vib_latency);
+                          ldr_val, dist_cm, vib_val);
         }
 
     }
