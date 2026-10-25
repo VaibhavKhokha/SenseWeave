@@ -19,7 +19,7 @@ namespace
     uint32_t g_last_sample_ms = 0;
     bool g_is_recording = false;
     int g_current_label = 0;
-    
+ 
 }
 
 void setup()
