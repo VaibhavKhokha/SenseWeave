@@ -24,6 +24,7 @@ def load_config(config_path):
         sys.exit(1)
 
 def find_esp32_port():
+    # search for connected esp32 ports automatically
     for p in serial.tools.list_ports.comports():
         if any(kw in p.description for kw in ["USB", "UART", "CH340", "CP210", "JTAG"]):
             return p.device
@@ -37,23 +38,25 @@ def instantiate_model(model_cfg):
         return RandomForestClassifier(n_estimators=model_cfg.get('n_estimators', 20), max_depth=10, random_state=42)
     elif arch == "GaussianNB":
         return GaussianNB()
+    
+    print(f"Unsupported architecture: {arch}")
     sys.exit(1)
 
 def generate_cpp_artifacts(clf, candidate_id, X_test, y_test):
+    # export the model to c++
     c_code = port(clf, classname='SenseWeaveModel')
     with open('firmware/esp32s3/include/model.h', 'w') as f:
         f.write(c_code)
         
     num_features = X_test.shape[1]
     
-    # 1. Dynamically find how many unique classes exist in the user's dataset
+    # find how many unique classes exist to set array sizes
     unique_classes = sorted(y_test.unique())
     num_vectors = len(unique_classes)
     
-    # 2. Write the dynamic macros
+    # write the header file with macros and test vectors
     config_h = f"""#pragma once\n#define MODEL_NAME "{candidate_id}"\n#define NUM_FEATURES {num_features}\n#define NUM_TEST_VECTORS {num_vectors}\nnamespace senseweave {{\n    const float kTestVectors[NUM_TEST_VECTORS][NUM_FEATURES] = {{\n"""
     
-    # 3. Extract exactly one golden vector for each dynamically found class
     for target_class in unique_classes:
         class_X = X_test[y_test == target_class]
         if not class_X.empty:
@@ -67,10 +70,11 @@ def generate_cpp_artifacts(clf, candidate_id, X_test, y_test):
         f.write(config_h)
 
 def execute_hil_profiling(port_name):
+    # communicate with esp32 over serial to get benchmark data
     try:
         ser = serial.Serial(port_name, 115200, timeout=5)
-        time.sleep(1.5)  # Wait for boot
-        ser.write(b'B')  # Send trigger
+        time.sleep(1.5)  
+        ser.write(b'B')  
         
         metrics = {"latency_us": None, "ram_bytes": None}
         start_time = time.time()
@@ -87,14 +91,13 @@ def execute_hil_profiling(port_name):
         ser.close()
         return metrics
     except Exception as e:
-        print(f"      [!] Serial error: {e}")
+        print(f"Serial error: {e}")
         return None
 
 def run_optimizer(config):
-    print("=" * 60)
-    print(f"SenseWeave Autonomous HIL Optimizer Initiated")
-    print(f"Task: {config['experiment_name']} | Target: {config['hardware_target']}")
-    print("=" * 60)
+    print("\n--- SenseWeave HIL Optimizer ---")
+    print(f"Task: {config['experiment_name']}")
+    print(f"Target: {config['hardware_target']}\n")
     
     com_port = find_esp32_port()
     if not com_port:
@@ -102,6 +105,7 @@ def run_optimizer(config):
 
     pio_path = os.path.expanduser(r"~\.platformio\penv\Scripts\pio.exe") if os.name == 'nt' else os.path.expanduser("~/.platformio/penv/bin/pio")
 
+    # load dataset
     df = pd.read_csv(config['dataset']['path'])
     train_df = df[df['session'] == config['dataset']['train_session']]
     test_df = df[df['session'] == config['dataset']['test_session']]
@@ -115,47 +119,45 @@ def run_optimizer(config):
         
         for model_cfg in config['models_to_evaluate']:
             candidate_id = f"{model_cfg['name']}_{subset['name']}"
-            print(f"\n[Evaluating] {candidate_id}")
+            print(f"Evaluating: {candidate_id}")
             
-            # 1. Offline Phase
+            # train model
             clf = instantiate_model(model_cfg)
             clf.fit(X_train, y_train)
             
-            # Monkey-Patch for micromlgen scikit-learn 1.0+ compatibility
+            # patch for micromlgen compatibility with newer sklearn versions
             if isinstance(clf, GaussianNB) and not hasattr(clf, 'sigma_'):
                 clf.sigma_ = clf.var_
                 
             acc = accuracy_score(y_test, clf.predict(X_test)) * 100.0
-
-            print(f"  -> Offline Accuracy: {acc:.2f}% | Features: {X_train.shape[1]}")
+            print(f"  Offline Accuracy: {acc:.2f}% (Features: {X_train.shape[1]})")
             
-            # 2. Metaprogramming
+            # generate firmware and flash
             generate_cpp_artifacts(clf, candidate_id, X_test, y_test)
             
-            # 3. HIL Flash
-            print(f"  -> Flashing Firmware to ESP32-S3 (PlatformIO)...")
+            print(f"  Compiling and flashing firmware...")
             try:
                 subprocess.run([pio_path, "run", "-d", "firmware/esp32s3", "--target", "upload"], 
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             except subprocess.CalledProcessError:
-                print("      [!] Flash failed. Ensure no other programs are using the COM port.")
+                print("  [Error] Flash failed. Check COM port connection.")
                 continue
                 
-            # 4. HIL Profiling
-            print(f"  -> Profiling Execution on Silicon...")
+            # run hardware profiling
+            print(f"  Profiling on hardware...")
             hil_metrics = execute_hil_profiling(com_port)
             
             if hil_metrics and hil_metrics['latency_us']:
-                print(f"  -> HIL Result: {hil_metrics['latency_us']} us | {hil_metrics['ram_bytes']} Bytes Free RAM")
+                print(f"  HIL Result: {hil_metrics['latency_us']} us | {hil_metrics['ram_bytes']} Bytes Free RAM\n")
                 candidate_registry.append({
                     "id": candidate_id, "accuracy": acc, "features": X_train.shape[1],
                     "latency_us": hil_metrics["latency_us"], "ram_bytes": hil_metrics["ram_bytes"]
                 })
 
-    # 5. Constraint Evaluation
-    print("\n" + "=" * 60)
+    # evaluate constraints
+    print("-" * 50)
     print("FINAL RECOMMENDATION MATRIX")
-    print("=" * 60)
+    print("-" * 50)
     
     min_acc = config['constraints']['min_accuracy_percent']
     max_lat = config['constraints']['max_latency_us']
@@ -169,25 +171,26 @@ def run_optimizer(config):
             reason = f"Latency {c['latency_us']}us > {max_lat}us"
         else:
             status = "ACCEPTED"
-            reason = "Meets all constraints"
+            reason = "Meets constraints"
             if best_candidate is None or c['accuracy'] > best_candidate['accuracy']:
                 best_candidate = c
                 
         print(f"[{status}] {c['id']}")
-        print(f"    Metrics: {c['accuracy']:.2f}% Acc | {c['latency_us']:.2f} us")
-        print(f"    Reason:  {reason}\n")
+        print(f"  Metrics: {c['accuracy']:.2f}% Acc | {c['latency_us']:.2f} us")
+        print(f"  Reason:  {reason}\n")
         
-    print("=" * 60)
+    print("-" * 50)
     if best_candidate:
-        print(f"DEPLOYMENT RECOMMENDATION: {best_candidate['id']}")
+        print(f"RECOMMENDED DEPLOYMENT: {best_candidate['id']}")
     else:
         print("No configuration met the required constraints.")
-    print("=" * 60)
+    print("-" * 50)
     
-    # Lifecycle Logging
+    # save results
     os.makedirs('experiments/results', exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    with open(f"experiments/results/run_{ts}.json", 'w') as f:
+    log_file = f"experiments/results/run_{ts}.json"
+    with open(log_file, 'w') as f:
         json.dump({"timestamp": ts, "config": config, "candidates": candidate_registry, "best": best_candidate}, f, indent=4)
 
 def main():
