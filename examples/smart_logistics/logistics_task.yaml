@@ -1,0 +1,31 @@
+# SenseWeave Experiment Configuration
+experiment_name: "Smart Logistics Tracker"
+hardware_target: "esp32s3"
+
+# Data definitions
+dataset:
+  path: "examples/smart_logistics/features.csv"
+  train_session: 1
+  test_session: 6
+
+# The hardware constraints
+constraints:
+  min_accuracy_percent: 70.0
+  max_latency_us: 100.0
+
+# The architectures we want the tool to automatically test
+models_to_evaluate:
+  - architecture: "DecisionTree"
+    name: "DT_Baseline"
+  - architecture: "RandomForest"
+    name: "RF_Baseline"
+    n_estimators: 20
+  - architecture: "GaussianNB"
+    name: "NaiveBayes_Baseline"
+
+# Sensor pruning subsets to evaluate
+sensor_subsets:
+  - name: "All_Sensors"
+    drop_features: []
+  - name: "Pruned_IMU_LDR"
+    drop_features: ["dist_mean", "vib_max"]
