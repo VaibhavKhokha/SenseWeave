@@ -1,0 +1,26 @@
+experiment_name: "Wearable Fall Detection"
+hardware_target: "esp32s3"
+
+dataset:
+  path: "examples/fall_detection/features.csv"
+  train_session: 1
+  test_session: 5
+
+constraints:
+  min_accuracy_percent: 85.0
+  max_latency_us: 150.0
+
+models_to_evaluate:
+  - architecture: "DecisionTree"
+    name: "DT"
+  - architecture: "RandomForest"
+    name: "RF"
+    n_estimators: 15
+  - architecture: "GaussianNB"
+    name: "NaiveBayes"
+
+sensor_subsets:
+  - name: "IMU_and_Biometrics"
+    drop_features: []
+  - name: "IMU_Only"
+    drop_features: ["heart_rate", "skin_temp"]
